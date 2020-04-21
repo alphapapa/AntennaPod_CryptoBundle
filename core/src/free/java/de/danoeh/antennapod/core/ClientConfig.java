@@ -1,6 +1,13 @@
 package de.danoeh.antennapod.core;
 
 import android.content.Context;
+import java.security.Security;
+
+/*
+ * If you get an error here ("package org.conscrypt does not exist"), you are probably doing a free
+ * build and didn't pass -PfreeBuild to gradle (e.g. ./gradlew assembleFreeRelease -PfreeBuild).
+ */
+import org.conscrypt.Conscrypt;
 
 import de.danoeh.antennapod.core.preferences.PlaybackPreferences;
 import de.danoeh.antennapod.core.preferences.SleepTimerPreferences;
@@ -43,6 +50,10 @@ public class ClientConfig {
         UserPreferences.init(context);
         PlaybackPreferences.init(context);
         NetworkUtils.init(context);
+
+        // Insert bundled conscrypt as highest security provider (overrides OS version).
+        Security.insertProviderAt(Conscrypt.newProvider(), 1);
+
         SleepTimerPreferences.init(context);
         RxJavaErrorHandlerSetup.setupRxJavaErrorHandler();
         NotificationUtils.createChannels(context);

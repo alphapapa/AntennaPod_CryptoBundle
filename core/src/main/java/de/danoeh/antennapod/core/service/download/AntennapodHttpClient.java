@@ -30,6 +30,7 @@ import javax.net.ssl.X509TrustManager;
 
 import de.danoeh.antennapod.core.preferences.UserPreferences;
 import de.danoeh.antennapod.core.storage.DBWriter;
+import de.danoeh.antennapod.core.util.Flavors;
 import okhttp3.CipherSuite;
 import okhttp3.ConnectionSpec;
 import okhttp3.Credentials;
@@ -142,11 +143,19 @@ public class AntennapodHttpClient {
                 });
             }
         }
-        if (Build.VERSION.SDK_INT < 21) {
+
+        // The Free flavor bundles a modern conscrypt (security provider), so CustomSslSocketFactory
+        // is only used to make sure that modern protocols (TLSv1.3 and TLSv1.2) are enabled and
+        // that old, deprecated, protocols (like SSLv3, TLSv1.0 and TLSv1.1) are disabled.
+        if (Flavors.FLAVOR == Flavors.FREE) {
             builder.sslSocketFactory(new CustomSslSocketFactory(), trustManager());
         }
+        // The Play flavor can not be assumed to have a modern security provider, so for Android
+        // older than 5.0 CustomSslSocketFactory is used to enable all possible protocols (modern
+        // and deprecated). And we explicitly enable deprecated cipher suites disabled by default.
+        else if (Build.VERSION.SDK_INT < 21) {
+            builder.sslSocketFactory(new CustomSslSocketFactory(), trustManager());
 
-        if (Build.VERSION.SDK_INT < 21) {
             // workaround for Android 4.x for certain web sites.
             // see: https://github.com/square/okhttp/issues/4053#issuecomment-402579554
             List<CipherSuite> cipherSuites = new ArrayList<>();
@@ -173,6 +182,9 @@ public class AntennapodHttpClient {
         }
     }
 
+    /**
+     * Reimplements default trust manager (required for calling sslSocketFactory).
+     */
     private static X509TrustManager trustManager() {
         try {
             TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
@@ -190,13 +202,27 @@ public class AntennapodHttpClient {
         }
     }
 
+    /**
+     * Used to disable deprecated protocols and explicitly enable TLSv1.3 and TLSv1.2, or to enable
+     * all protocols (including deprecated) up to TLSv1.2, depending on build flavor (Free or Play).
+     */
     private static class CustomSslSocketFactory extends SSLSocketFactory {
 
         private SSLSocketFactory factory;
 
         public CustomSslSocketFactory() {
             try {
-                SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+                SSLContext sslContext;
+
+                // Free flavor (bundles modern conscrypt): support for TLSv1.3 is guaranteed.
+                if (Flavors.FLAVOR == Flavors.FREE) {
+                    sslContext = SSLContext.getInstance("TLSv1.3");
+                }
+                // Play flavor (security provider can vary): only TLSv1.2 is guaranteed.
+                else {
+                    sslContext = SSLContext.getInstance("TLSv1.2");
+                }
+
                 sslContext.init(null, null, null);
                 factory= sslContext.getSocketFactory();
             } catch(GeneralSecurityException e) {
@@ -251,7 +277,16 @@ public class AntennapodHttpClient {
         }
 
         private void configureSocket(SSLSocket s) {
-            s.setEnabledProtocols(new String[] { "TLSv1.2", "TLSv1.1", "TLSv1" } );
+            // Free flavor (bundles modern conscrypt): TLSv1.3 and modern cipher suites are
+            // guaranteed. Protocols older than TLSv1.2 are now deprecated and can be disabled.
+            if (Flavors.FLAVOR == Flavors.FREE) {
+                s.setEnabledProtocols(new String[] { "TLSv1.3", "TLSv1.2" } );
+            }
+            // Play flavor (security provider can vary): only TLSv1.2 is guaranteed, supported
+            // cipher suites may vary. Old protocols might be necessary to keep things working.
+            else {
+                s.setEnabledProtocols(new String[] { "TLSv1.2", "TLSv1.1", "TLSv1" } );
+            }
         }
 
     }

@@ -4,8 +4,8 @@
     tools:ignore="MissingTranslation">
 
     <!-- Activitiy and fragment titles -->
-    <string name="app_name" translate="false">AntennaPod</string>
-    <string name="provider_authority" translate="false">de.danoeh.antennapod.provider</string>
+    <string name="app_name" translate="false">AntennaPod CryptoBundle</string>
+    <string name="provider_authority" translate="false">de.danoeh.antennapod.cryptobundle.provider</string>
     <string name="feed_update_receiver_name">Update Subscriptions</string>
     <string name="feeds_label">Feeds</string>
     <string name="statistics_label">Statistics</string>
